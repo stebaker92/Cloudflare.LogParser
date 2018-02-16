@@ -17,9 +17,10 @@ namespace Cloudflare.LogParser
             string authKey = null;
             string authEmail = null;
 
-            // Filters
+            // Options
             string filterHost = null;
             string filterRequest = null;
+            int longRequestSeconds = 5;
 
             // TODO add a config file
 
@@ -53,14 +54,14 @@ namespace Cloudflare.LogParser
             var logsJson = $"[{response.Content}]".Replace("}", "},").Replace("},]", "}]");
 
             var logs = JsonConvert.DeserializeObject<List<CloudflareLog>>(logsJson);
-            Console.WriteLine($"Found {logs.Count} rows");
+            Console.WriteLine($"Found {logs.Count} logs");
 
             logs = logs
                 .Where(x => filterHost != null && x.ClientRequestHost.Contains(filterHost))
                 .Where(x => filterRequest != null && x.ClientRequestURI.Contains(filterRequest))
                 .ToList();
 
-            Console.WriteLine($"Found {logs.Count} filtered rows");
+            Console.WriteLine($"Found {logs.Count} filtered logs");
 
             if (!logs.Any())
             {
@@ -70,15 +71,22 @@ namespace Cloudflare.LogParser
             var avgMilliseconds = logs.Average(x => x.Milliseconds);
             var minMilliseconds = logs.Min(x => x.Milliseconds);
             var maxMilliseconds = logs.OrderByDescending(x => x.Milliseconds).First();
-            var aboveSeconds = logs.Count(x => x.Milliseconds > 5000);
+            var aboveSecondsCount = logs.Count(x => x.Milliseconds > longRequestSeconds * 1000);
 
             Console.WriteLine("Avg: " + avgMilliseconds);
+            Console.WriteLine();
+
             Console.WriteLine("Min: " + minMilliseconds);
-            Console.WriteLine("Max: " + maxMilliseconds.Milliseconds + " RayID: " + maxMilliseconds.RayID + " " + maxMilliseconds.EndTime);
-            Console.WriteLine("Long (> 5s): " + aboveSeconds);
+            Console.WriteLine();
+
+            Console.WriteLine("Max: " + maxMilliseconds.Milliseconds);
+            Console.WriteLine("RayID: " + maxMilliseconds.RayID);
+            Console.WriteLine("EndTime:" + maxMilliseconds.EndTime);
+            Console.WriteLine();
+
+            Console.WriteLine($"Long (>{longRequestSeconds}s): " + aboveSecondsCount);
 
             Console.ReadLine();
         }
-
     }
 }
