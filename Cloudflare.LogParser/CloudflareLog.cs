@@ -11,7 +11,7 @@ namespace Cloudflare.LogParser
         public long EdgeStartTimestamp { get; set; }
         public long EdgeEndTimestamp { get; set; }
         public int EdgeResponseBytes { get; set; }
-        public int EdgeResponseStatus { get; set; }
+        public short EdgeResponseStatus { get; set; }
         public string RayID { get; set; }
 
 
@@ -36,6 +36,14 @@ namespace Cloudflare.LogParser
             get
             {
                 return UnixNanoToDateTime((EdgeEndTimestamp));
+            }
+        }
+
+        public bool IsSuccessful
+        {
+            get
+            {
+                return EdgeResponseStatus >= 200 && EdgeResponseStatus < 399;
             }
         }
 

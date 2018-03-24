@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using RestSharp;
 using System;
 using System.Collections.Generic;
@@ -22,10 +22,6 @@ namespace Cloudflare.LogParser
             string filterRequest = null;
             int longRequestSeconds = 5;
 
-            // TODO add a config file
-
-            var client = new RestClient($"https://api.cloudflare.com/client/v4/zones/{zoneId}/logs/received");
-
             DateTime start = new DateTime();
             DateTime end = new DateTime();
 
@@ -33,6 +29,11 @@ namespace Cloudflare.LogParser
             start = DateTime.Today.AddTicks(new TimeSpan(10, 17, 00).Ticks);
             end = start.AddMinutes(5);
             //end = DateTime.Today.AddTicks(new TimeSpan(10, 37, 00).Ticks);
+
+            Console.WriteLine("Start Time is: " + start.ToString());
+            Console.WriteLine("End Time is: " + end.ToString());
+
+            var client = new RestClient($"https://api.cloudflare.com/client/v4/zones/{zoneId}/logs/received");
 
             var request = new RestRequest();
 
@@ -50,18 +51,18 @@ namespace Cloudflare.LogParser
                 throw new Exception(response.Content);
             }
 
-            // Convert the response to a json object
+            // Convert the response to a valid json object
             var logsJson = $"[{response.Content}]".Replace("}", "},").Replace("},]", "}]");
 
             var logs = JsonConvert.DeserializeObject<List<CloudflareLog>>(logsJson);
-            Console.WriteLine($"Found {logs.Count} logs");
+            Console.WriteLine($"Found {logs.Count} logs before filtering");
 
             logs = logs
                 .Where(x => filterHost != null && x.ClientRequestHost.Contains(filterHost))
                 .Where(x => filterRequest != null && x.ClientRequestURI.Contains(filterRequest))
                 .ToList();
 
-            Console.WriteLine($"Found {logs.Count} filtered logs");
+            Console.WriteLine($"Found {logs.Count} logs after filtering host '{filterHost}' and request {filterRequest}");
 
             if (!logs.Any())
             {
@@ -72,6 +73,7 @@ namespace Cloudflare.LogParser
             var minMilliseconds = logs.Min(x => x.Milliseconds);
             var maxMilliseconds = logs.OrderByDescending(x => x.Milliseconds).First();
             var aboveSecondsCount = logs.Count(x => x.Milliseconds > longRequestSeconds * 1000);
+            var successfulCount = logs.Count(x => x.IsSuccessful);
 
             Console.WriteLine("Avg: " + avgMilliseconds);
             Console.WriteLine();
@@ -80,11 +82,22 @@ namespace Cloudflare.LogParser
             Console.WriteLine();
 
             Console.WriteLine("Max: " + maxMilliseconds.Milliseconds);
-            Console.WriteLine("RayID: " + maxMilliseconds.RayID);
+            Console.WriteLine("Slowest RayID: " + maxMilliseconds.RayID);
             Console.WriteLine("EndTime:" + maxMilliseconds.EndTime);
             Console.WriteLine();
 
             Console.WriteLine($"Long (>{longRequestSeconds}s): " + aboveSecondsCount);
+
+            Console.WriteLine($"Successful: {successfulCount}");
+            Console.WriteLine($"Failed: {logs.Count - successfulCount}");
+            Console.WriteLine();
+
+            Console.WriteLine("Status Breakdown:");
+            logs.GroupBy(x => x.EdgeResponseStatus)
+                .Select(x => new KeyValuePair<short, int>(x.Key, x.Count()))
+                .OrderBy(x => x.Key)
+                .ToList()
+                .ForEach(g => Console.WriteLine($"{g.Key}: {g.Value}"));
 
             Console.ReadLine();
         }
